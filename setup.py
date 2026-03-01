@@ -4,7 +4,7 @@ setup(
     name="ai-cli",
     version="3.0.0",
     packages=find_packages(),
-    py_modules=["__main__"],
+    py_modules=["aicli"],
     install_requires=[
         "groq",
         "questionary",
@@ -12,7 +12,7 @@ setup(
     ],
     entry_points={
         "console_scripts": [
-            "ai-cli=__main__:main",
+            "ai-cli=aicli:main",
         ],
     },
     author="Anay Rustogi",
