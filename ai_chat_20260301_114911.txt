@@ -1,0 +1,28 @@
+SYSTEM: You are a helpful AI assistant. Use markdown.
+
+USER: commands
+
+ASSISTANT: ### Available Commands
+Here are some commands you can use to interact with me:
+
+#### General Information
+* **`help`**: Displays this list of available commands.
+* **`about`**: Provides information about me, the AI assistant.
+
+#### Conversation Management
+* **`start`**: Begins a new conversation.
+* **`stop`**: Ends the current conversation.
+* **`topic [subject]`**: Changes the conversation topic to the specified subject.
+
+#### Knowledge Queries
+* **`define [term]`**: Provides a definition for the specified term.
+* **`explain [concept]`**: Offers an explanation of the specified concept.
+* **`list [category]`**: Lists items within the specified category.
+
+#### Entertainment
+* **`joke`**: Shares a random joke.
+* **`quote`**: Displays a random quote.
+* **`game [game name]`**: Starts a text-based game (e.g., Hangman, 20 Questions).
+
+Please respond with one of these commands to get started.
+
