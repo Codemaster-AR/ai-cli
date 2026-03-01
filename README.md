@@ -26,3 +26,5 @@ Run the command:
 ai-cli
 ```
 Follow the instructions to set up your Groq API key.
+## Tap repository:
+[https://github.com/Codemaster-AR/homebrew-ai-cli](https://github.com/Codemaster-AR/homebrew-ai-cli)
