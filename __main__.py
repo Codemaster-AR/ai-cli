@@ -1,48 +1,66 @@
 import os
 import sys
+import json
 import datetime
-import base64
+from pathlib import Path
+from groq import Groq
+import questionary
+from rich.console import Console
+from rich.panel import Panel
+from rich.markdown import Markdown
+from rich.text import Text
+from rich.align import Align
+from rich.table import Table
 
-# --- CROSS-PLATFORM DEPENDENCY CHECK ---
-try:
-    from groq import Groq
-    import questionary
-    from rich.console import Console
-    from rich.panel import Panel
-    from rich.markdown import Markdown
-    from rich.text import Text
-    from rich.align import Align
-    from rich.table import Table
-except ImportError:
-    print("Error: Missing dependencies. Run: pip install groq questionary rich")
-    sys.exit(1)
-
-# Initialize Rich Console with universal color support
 console = Console(force_terminal=True)
 
-# --- THE BULLETPROOF HEX KEY ---
-_SECRET_HEX = "67736b5f6f31695741736a386c544e68323144345268613157476479623346596b56534e6a754977434a3451764e45776468467354587778"
+# --- AUTO-CONNECT CONFIG ---
+# Just like Gemini CLI, we store the session in a hidden config folder
+CONFIG_DIR = Path.home() / ".config" / "ai-cli"
+CONFIG_FILE = CONFIG_DIR / "session.json"
 
-def _get_api_key():
-    return bytes.fromhex(_SECRET_HEX).decode('utf-8')
+def get_session_client():
+    """Attempts to auto-connect or guides the user through a 10-second setup."""
+    # 1. Automatic Discovery (Environment Variable)
+    if os.environ.get("GROQ_API_KEY"):
+        return Groq(api_key=os.environ.get("GROQ_API_KEY"))
 
-client = Groq(api_key=_get_api_key())
+    # 2. Automatic Discovery (Saved Local Session)
+    if CONFIG_FILE.exists():
+        try:
+            with open(CONFIG_FILE, "r") as f:
+                data = json.load(f)
+                return Groq(api_key=data.get("api_key"))
+        except:
+            pass
 
-# --- ADVANCED UI STYLING ---
-# Specifically tuned to look good on both Unix (Mac/Linux) and WSL terminals
+    # 3. If no key found, provide a clickable link and setup
+    console.print(get_header())
+    setup_msg = (
+        "[bold white]No Active Session Found.[/bold white]\n\n"
+        "1. Go to: [bold cyan]https://console.groq.com/keys[/bold cyan]\n"
+        "2. Create an API Key.\n"
+        "3. Paste it below to enable [bold magenta]ai-cli[/bold magenta] permanently."
+    )
+    console.print(Panel(setup_msg, title="[bold yellow]Automatic Setup[/bold yellow]", border_style="yellow"))
+    
+    key = questionary.password("❯ Paste your API Key here:").ask()
+    
+    if key and key.startswith("gsk_"):
+        CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+        with open(CONFIG_FILE, "w") as f:
+            json.dump({"api_key": key, "date": str(datetime.date.today())}, f)
+        console.print("[bold green]✔ Authorized! Auto-connect is now enabled.[/bold green]\n")
+        return Groq(api_key=key)
+    else:
+        console.print("[bold red]Error:[/bold red] Invalid key. Please restart and paste a valid Groq key.")
+        sys.exit(1)
+
+# --- UI STYLING ---
 custom_style = questionary.Style([
-    ('qmark', 'fg:#673ab7 bold'),
-    ('question', 'bold'),
     ('pointer', 'fg:#ffffff bg:#673ab7 bold'), 
     ('selected', 'fg:#ffffff bg:#673ab7 bold'), 
-    ('highlighted', 'fg:#ffffff bg:#673ab7 bold'),
-    ('answer', 'fg:#673ab7 bold'),
 ])
-
-def clear_terminal():
-    """Universal terminal clear command for Mac, Linux, WSL, and Windows."""
-    # 'nt' is Windows (including CMD/PowerShell), otherwise clear works for Unix/WSL
-    os.system('cls' if os.name == 'nt' else 'clear')
 
 def get_header():
     ascii_art = r"""
@@ -52,130 +70,87 @@ def get_header():
  / ___ |_/ /      / /___/ /____/ /   
 /_/  |_/___/      \____/_____/___/   
     """
-    return Panel(
-        Align.center(Text(ascii_art, style="bold magenta")), 
-        subtitle="[white]v2.2.0 - Universal Binary[/white]", 
-        border_style="magenta"
-    )
+    return Panel(Align.center(Text(ascii_art, style="bold magenta")), subtitle="[white]v2.5.0 - Pro Engine[/white]", border_style="magenta")
 
 def show_commands():
-    """Displays the list of available slash commands in a Rich Table."""
-    table = Table(title="CLI COMMANDS", border_style="magenta", title_style="bold magenta")
-    table.add_column("Command", style="bold green", no_wrap=True)
-    table.add_column("Action", style="white")
-    
-    table.add_row("/commands", "Show this help menu")
-    table.add_row("/clear", "Wipe screen (keeps chat memory)")
-    table.add_row("/reset", "Wipe chat history/memory")
-    table.add_row("/save", "Export chat to .txt file")
-    table.add_row("/system", "Change AI personality")
-    table.add_row("/exit", "Exit to main menu")
-    
+    table = Table(title="Slash Commands", border_style="magenta")
+    table.add_column("Command", style="bold green")
+    table.add_column("Function")
+    table.add_row("/commands", "List all commands")
+    table.add_row("/clear", "Clear screen (keep context)")
+    table.add_row("/reset", "Wipe AI memory")
+    table.add_row("/save", "Save chat to file")
+    table.add_row("/exit", "Back to main menu")
     console.print(table)
 
-def start_chat_session(model_id):
-    history = [{"role": "system", "content": "You are a helpful AI assistant. Use markdown."}]
-    
-    clear_terminal()
+def chat_loop(client, model_id):
+    history = [{"role": "system", "content": "You are a helpful AI. Format with Markdown."}]
+    os.system('cls' if os.name == 'nt' else 'clear')
     console.print(get_header())
-    console.print(f"[bold yellow]Session Active:[/bold yellow] {model_id}")
-    console.print("[dim]Type '/commands' for help.[/dim]\n")
+    console.print(f"[bold yellow]Authenticated:[/bold yellow] {model_id}\n")
 
     while True:
-        # questionary handles raw terminal input, fixing ^M issues on Mac/WSL
-        user_input = questionary.text("You ❯", qmark="", style=custom_style).ask()
-
-        if user_input is None: break
-        cmd = user_input.lower().strip()
-
-        # --- COMMAND LOGIC ---
-        if cmd == "/exit":
-            break
-            
-        elif cmd == "/commands":
+        user_in = questionary.text("You ❯", qmark="", style=custom_style).ask()
+        
+        if user_in is None or user_in.lower() == "/exit": break
+        
+        if user_in.lower() == "/commands":
             show_commands()
             continue
-            
-        elif cmd == "/clear":
-            clear_terminal()
+        elif user_in.lower() == "/clear":
+            os.system('cls' if os.name == 'nt' else 'clear')
             console.print(get_header())
-            console.print(f"[dim]Screen cleared. Context preserved for {model_id}.[/dim]\n")
             continue
-            
-        elif cmd == "/reset":
-            history = [{"role": "system", "content": "You are a helpful AI assistant."}]
-            console.print("[italic cyan]Memory wiped.[/italic cyan]")
-            continue
-            
-        elif cmd == "/system":
-            persona = questionary.text("Define new AI persona:").ask()
-            if persona:
-                history[0] = {"role": "system", "content": persona}
-                console.print(f"[green]Persona updated.[/green]")
-            continue
-            
-        elif cmd == "/save":
-            filename = f"ai_log_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
-            try:
-                with open(filename, "w", encoding="utf-8") as f:
-                    for msg in history:
-                        f.write(f"{msg['role'].upper()}: {msg['content']}\n\n")
-                console.print(f"[bold green]Saved transcript to {filename}[/bold green]")
-            except Exception as e:
-                console.print(f"[bold red]Save Error:[/bold red] {e}")
+        elif user_in.lower() == "/reset":
+            history = [{"role": "system", "content": "You are a helpful AI."}]
+            console.print("[dim]Memory reset.[/dim]")
             continue
 
-        if not user_input.strip(): continue
+        if not user_in.strip(): continue
 
-        # --- AI PROCESSING ---
-        history.append({"role": "user", "content": user_input})
+        history.append({"role": "user", "content": user_in})
         try:
-            with console.status("[bold green]Querying LPU..."):
+            with console.status(f"[bold green]Processing..."):
                 completion = client.chat.completions.create(messages=history, model=model_id)
                 resp = completion.choices[0].message.content
             
             history.append({"role": "assistant", "content": resp})
-            console.print(Panel(Markdown(resp), title=f"[bold blue]{model_id}[/bold blue]", border_style="blue", padding=(1, 2)))
-            print() 
+            console.print(Panel(Markdown(resp), title=f"[blue]{model_id}[/blue]", border_style="blue", padding=(1,2)))
         except Exception as e:
-            console.print(f"[bold red]API Error:[/bold red] {e}")
+            console.print(f"[bold red]Error:[/bold red] {e}")
 
 def main():
-    clear_terminal()
-    console.print(get_header())
+    # Attempt automatic connection
+    client = get_session_client()
     
     while True:
         action = questionary.select(
             "ai-cli Control Panel:",
-            choices=['Chat', 'System Status', 'Exit'],
+            choices=['Chat', 'Logout', 'Exit'],
             style=custom_style,
             pointer='❯ '
         ).ask()
 
-        if action in ['Exit', None]: break
-            
-        elif action == 'Chat':
-            model_id = questionary.select(
-                "Select Intelligence Engine:",
+        if action == 'Chat':
+            model = questionary.select(
+                "Select Engine:",
                 choices=[
-                    questionary.Choice("Llama 3.3 70B (Stable)", value="llama-3.3-70b-versatile"),
-                    questionary.Choice("Llama 3.1 8B (Fast)", value="llama-3.1-8b-instant"),
+                    questionary.Choice("Llama 3.3 70B", value="llama-3.3-70b-versatile"),
+                    questionary.Choice("Llama 3.1 8B", value="llama-3.1-8b-instant"),
                     "Back"
                 ],
-                style=custom_style,
-                pointer='❯ '
+                style=custom_style
             ).ask()
-
-            if model_id == "Back": continue
-            start_chat_session(model_id)
-
-        elif action == 'System Status':
-            status = (
-                f"OS: [bold cyan]{sys.platform}[/bold cyan]\n"
-                "Environment: [bold green]Universal/WSL Verified[/bold green]\n"
-                "Memory Mode: [bold yellow]Stateful (Persistent History)[/bold yellow]"
-            )
-            console.print(Panel(status, title="Diagnostics"))
+            if model != "Back": chat_loop(client, model)
+        
+        elif action == 'Logout':
+            if CONFIG_FILE.exists():
+                os.remove(CONFIG_FILE)
+                console.print("[yellow]Logged out. Key removed from local storage.[/yellow]")
+                sys.exit(0)
+        
+        elif action in ['Exit', None]:
+            break
 
 if __name__ == "__main__":
     try:
