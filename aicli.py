@@ -21,7 +21,7 @@ import requests  # For update check
 warnings.filterwarnings("ignore")
 
 # --- VERSION ---
-VERSION = "7"
+VERSION = "8.0.0"
 
 # --- CONFIG & INITIALIZATION ---
 console = Console(force_terminal=True)
