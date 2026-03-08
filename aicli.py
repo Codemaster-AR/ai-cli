@@ -21,7 +21,7 @@ import requests  # For update check
 warnings.filterwarnings("ignore")
 
 # --- VERSION ---
-VERSION = "8.0.0"
+VERSION = "9.0.0"
 
 # --- CONFIG & INITIALIZATION ---
 console = Console(force_terminal=True)
@@ -171,7 +171,7 @@ def get_header(current_model):
     """
     return Panel(
         Align.center(gradient_text(ascii_art)),
-        subtitle=f"[white]v{VERSION} - {current_model} ({platform.system()})[/white]",
+        subtitle=f"[white]{VERSION} - {current_model} ({platform.system()})[/white]",
         border_style="magenta"
     )
 
@@ -212,7 +212,7 @@ def call_mistral_proxy(http_client, history, model_name):
     }
 
     try:
-        resp = http_client.post(PROXY_URL, json=payload, timeout=60.0)
+        resp = http_client.post(PROXY_URL, json=payload, timeout=300.0)
     except Exception as e:
         return None, None, f"[bold red]Connection Error:[/bold red] {str(e)}"
 
@@ -249,7 +249,7 @@ def call_qwen_proxy(http_client, prompt, model_name="qwen/qwen3-coder-flash"):
     }
 
     try:
-        resp = http_client.post(QWEN_PROXY_URL, headers=headers, json=payload, timeout=60.0)
+        resp = http_client.post(QWEN_PROXY_URL, headers=headers, json=payload, timeout=300.0)
     except Exception as e:
         return None, f"[bold red]Qwen Connection Error:[/bold red] {str(e)}"
 
@@ -266,7 +266,7 @@ def call_qwen_proxy(http_client, prompt, model_name="qwen/qwen3-coder-flash"):
 # --- CORE LOOP ---
 def chat_agent(groq_client=None):
     current_model = MODELS[0]
-    http_client = httpx.Client(http2=True, timeout=httpx.Timeout(60.0, connect=15.0))
+    http_client = httpx.Client(http2=True, timeout=httpx.Timeout(300.0, connect=15.0))
     history = [{"role": "system", "content": f"You are a Senior Software Engineer AI Agent running on {platform.system()}. Use Markdown."}]
 
     os.system('cls' if os.name == 'nt' else 'clear')
@@ -375,7 +375,7 @@ def chat_agent(groq_client=None):
                         headers = {"Authorization": f"Bearer {current_api_key}"}
                         url = DEFAULT_GROQ_PROXY
 
-                        resp = http_client.post(url, headers=headers, json=payload, timeout=60.0)
+                        resp = http_client.post(url, headers=headers, json=payload, timeout=300.0)
                         
                         if resp.status_code != 200:
                             console.print(f"[bold red]Groq Proxy Error {resp.status_code}:[/bold red] {resp.text}")
